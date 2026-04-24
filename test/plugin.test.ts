@@ -76,7 +76,7 @@ describe('plugin activation', () => {
 });
 
 describe('build mode', () => {
-  const resolved = { command: 'build', server: {} } as any;
+  const resolved = { command: 'build', server: {}, build: { ssr: false } } as any;
 
   it('emits passed result with duration on successful build', async () => {
     const { emitted, restore } = captureStdout();
@@ -90,9 +90,30 @@ describe('build mode', () => {
 
     expect(emitted).toHaveLength(1);
     expect(emitted[0].mode).toBe('build');
+    expect(emitted[0].target).toBe('client');
     expect(emitted[0].result).toBe('passed');
     expect(typeof emitted[0].duration_ms).toBe('number');
     expect(emitted[0].duration_ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it('reports target: "ssr" when building with --ssr', () => {
+    const { emitted, restore } = captureStdout();
+    const p = optimizer({ force: true });
+    callHook(p, 'configResolved', { command: 'build', server: {}, build: { ssr: true } } as any);
+    callHook(p, 'buildStart');
+    callHook(p, 'closeBundle');
+    restore();
+    expect(emitted[0].target).toBe('ssr');
+  });
+
+  it('reports target: "ssr" when build.ssr is an entry path string', () => {
+    const { emitted, restore } = captureStdout();
+    const p = optimizer({ force: true });
+    callHook(p, 'configResolved', { command: 'build', server: {}, build: { ssr: 'src/entry-server.ts' } } as any);
+    callHook(p, 'buildStart');
+    callHook(p, 'closeBundle');
+    restore();
+    expect(emitted[0].target).toBe('ssr');
   });
 
   it('emits failed result with normalized error', () => {

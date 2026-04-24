@@ -1,6 +1,6 @@
 {
   "name": "agent-output-optimizer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Agent-optimized output for Vite. Emits compact JSON when running inside an AI agent (Claude Code, Cursor, Devin, etc.).",
   "type": "module",
   "main": "./dist/index.cjs",

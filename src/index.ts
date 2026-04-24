@@ -147,6 +147,7 @@ export default function optimizer(options: OptimizerOptions = {}): Plugin {
       emitted = true;
       emit({
         mode: 'build',
+        target: config.build?.ssr ? 'ssr' : 'client',
         result: errors.length ? 'failed' : 'passed',
         duration_ms: Date.now() - startedAt,
         ...(emitChunks ? { chunks } : {}),
