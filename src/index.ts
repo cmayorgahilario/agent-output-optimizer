@@ -9,6 +9,7 @@ export interface OptimizerOptions {
   hmr?: boolean;
   chunks?: boolean;
   gzip?: boolean;
+  warnings?: boolean;
 }
 
 interface ChunkInfo {
@@ -18,6 +19,15 @@ interface ChunkInfo {
 }
 
 interface BuildError {
+  message: string;
+  code?: string;
+  plugin?: string;
+  file?: string;
+  line?: number;
+  column?: number;
+}
+
+interface BuildWarning {
   message: string;
   code?: string;
   plugin?: string;
@@ -43,6 +53,7 @@ export default function optimizer(options: OptimizerOptions = {}): Plugin {
   const emitHmr = options.hmr ?? false;
   const emitChunks = options.chunks ?? false;
   const computeGzip = options.gzip ?? true;
+  const emitWarnings = options.warnings ?? true;
 
   let config: ResolvedConfig;
   let startedAt = 0;
@@ -50,6 +61,7 @@ export default function optimizer(options: OptimizerOptions = {}): Plugin {
   let stderrPatched = false;
   const chunks: ChunkInfo[] = [];
   const errors: BuildError[] = [];
+  const warnings: BuildWarning[] = [];
 
   function silenceStderr() {
     if (stderrPatched) return;
@@ -117,6 +129,13 @@ export default function optimizer(options: OptimizerOptions = {}): Plugin {
       startedAt = Date.now();
       chunks.length = 0;
       errors.length = 0;
+      warnings.length = 0;
+    },
+
+    onLog(level: string, log: unknown) {
+      if (!active || !emitWarnings) return;
+      if (level !== 'warn') return;
+      warnings.push(normalizeWarning(log));
     },
 
     generateBundle(_opts, bundle) {
@@ -152,6 +171,7 @@ export default function optimizer(options: OptimizerOptions = {}): Plugin {
         duration_ms: Date.now() - startedAt,
         ...(emitChunks ? { chunks } : {}),
         ...(errors.length ? { errors } : {}),
+        ...(emitWarnings && warnings.length ? { warnings } : {}),
       });
     },
   };
@@ -228,6 +248,32 @@ function normalizeError(err: unknown): BuildError {
     return out;
   }
   return { message: clean(String(err)) };
+}
+
+function normalizeWarning(log: unknown): BuildWarning {
+  if (typeof log === 'string') {
+    return { message: clean(log) };
+  }
+  if (log && typeof log === 'object') {
+    const l = log as {
+      message?: string;
+      code?: string;
+      plugin?: string;
+      id?: string;
+      loc?: { file?: string; line?: number; column?: number };
+    };
+    const out: BuildWarning = { message: clean(l.message ?? '') || 'Unknown warning' };
+    if (l.code) out.code = l.code;
+    if (l.plugin) out.plugin = l.plugin;
+    const file = l.loc?.file ?? l.id;
+    if (file && !file.includes('node_modules/') && !file.startsWith('file:///')) {
+      out.file = file;
+      if (l.loc?.line !== undefined) out.line = l.loc.line;
+      if (l.loc?.column !== undefined) out.column = l.loc.column;
+    }
+    return out;
+  }
+  return { message: clean(String(log)) };
 }
 
 function findUserFile(cleaned: string): { file: string; line: number; column: number } | null {
