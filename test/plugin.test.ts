@@ -251,6 +251,58 @@ describe('chunks option', () => {
   });
 });
 
+describe('dev server', () => {
+  function fakeServer() {
+    const listeners: Record<string, Array<() => void>> = {};
+    const httpServer = {
+      listen: vi.fn(),
+      on(event: string, cb: () => void) {
+        (listeners[event] ??= []).push(cb);
+        return this;
+      },
+      emit(event: string) {
+        for (const cb of listeners[event] ?? []) cb();
+      },
+      address: () => ({ port: 5173 }),
+    };
+    return { httpServer, server: { httpServer } };
+  }
+
+  it('does not return httpServer.listen (avoids ERR_SERVER_ALREADY_LISTEN)', () => {
+    const p = optimizer({ force: true });
+    callHook(p, 'configResolved', { command: 'serve', server: {} } as any);
+    const { httpServer, server } = fakeServer();
+    const result = callHook(p, 'configureServer', server);
+    expect(result).toBeUndefined();
+    expect(httpServer.listen).not.toHaveBeenCalled();
+  });
+
+  it('emits a dev ready event when the server starts listening', () => {
+    const { emitted, restore } = captureStdout();
+    const p = optimizer({ force: true });
+    callHook(p, 'configResolved', { command: 'serve', server: {} } as any);
+    const { httpServer, server } = fakeServer();
+    callHook(p, 'configureServer', server);
+    httpServer.emit('listening');
+    restore();
+
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].mode).toBe('dev');
+    expect(emitted[0].ready).toBe(true);
+    expect(emitted[0].port).toBe(5173);
+    expect(emitted[0].url).toBe('http://localhost:5173');
+  });
+
+  it('does not touch the dev server when inactive', () => {
+    const p = optimizer();
+    callHook(p, 'configResolved', { command: 'serve', server: {} } as any);
+    const { httpServer, server } = fakeServer();
+    const result = callHook(p, 'configureServer', server);
+    expect(result).toBeUndefined();
+    expect(httpServer.listen).not.toHaveBeenCalled();
+  });
+});
+
 describe('HMR', () => {
   it('does not emit HMR events by default', () => {
     const { emitted, restore } = captureStdout();

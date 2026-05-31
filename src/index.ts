@@ -100,7 +100,6 @@ export default function optimizer(options: OptimizerOptions = {}): Plugin {
       const httpServer = server.httpServer;
       if (!httpServer) return;
 
-      const origListen = httpServer.listen.bind(httpServer);
       const devStart = Date.now();
 
       httpServer.on('listening', () => {
@@ -115,8 +114,6 @@ export default function optimizer(options: OptimizerOptions = {}): Plugin {
           duration_ms: Date.now() - devStart,
         });
       });
-
-      return origListen;
     },
 
     handleHotUpdate(ctx) {
